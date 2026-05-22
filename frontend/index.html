@@ -1204,7 +1204,7 @@
         },
         
         connectSockets() {
-          const socketUrl = window.location.origin;
+          const socketUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? window.location.origin : 'http://localhost:5000';
           this.socket = io(socketUrl);
           
           this.socket.on('connect', () => {
@@ -1254,7 +1254,7 @@
         
         async fetchData() {
           const headers = { 'Authorization': `Bearer mock-jwt-token-decorarte-${this.user.id}` };
-          const backend = window.location.origin;
+          const backend = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? window.location.origin : 'http://localhost:5000';
 
           try {
             // Dashboard metrics
