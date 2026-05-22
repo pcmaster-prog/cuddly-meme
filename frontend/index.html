@@ -1,0 +1,1615 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DecorArte Media Hub + Academia</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Outfit', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#faf5ff',
+              100: '#f3e8ff',
+              500: '#a855f7',
+              600: '#9333ea',
+              700: '#7e22ce',
+              900: '#581c87',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Socket.io -->
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <!-- Alpine.js (for simple reactive binding) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    
+    /* Premium Glassmorphism */
+    .glass-panel {
+      background: rgba(15, 15, 20, 0.5);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.02);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .glass-card:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(168, 85, 247, 0.3);
+      transform: translateY(-2px);
+    }
+    .active-nav {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%);
+      border-left: 3px solid #a855f7;
+      color: #faf5ff !important;
+    }
+    
+    /* GIN Glow Anim */
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 0.15; }
+      50% { opacity: 0.3; }
+    }
+    .radial-glow {
+      animation: pulse-glow 8s infinite alternate;
+    }
+  </style>
+</head>
+<body class="bg-[#09090b] text-zinc-100 font-sans min-h-screen relative overflow-x-hidden selection:bg-purple-500 selection:text-white"
+      x-data="decorarteHub()">
+
+  <!-- Background Orbs -->
+  <div class="absolute -top-40 -left-40 w-96 h-96 bg-purple-600/20 rounded-full blur-[120px] pointer-events-none radial-glow"></div>
+  <div class="absolute top-1/2 -right-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none radial-glow"></div>
+  <div class="absolute -bottom-40 left-1/3 w-96 h-96 bg-pink-600/10 rounded-full blur-[120px] pointer-events-none radial-glow"></div>
+
+  <!-- Notification Toast Container -->
+  <div class="fixed top-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full">
+    <template x-for="toast in toasts" :key="toast.id">
+      <div class="glass-panel p-4 rounded-xl border-l-4 shadow-2xl flex items-start gap-3 transform transition-all duration-300 translate-y-0"
+           :class="{
+             'border-purple-500': toast.type === 'info',
+             'border-green-500': toast.type === 'success',
+             'border-yellow-500': toast.type === 'warning'
+           }">
+        <div class="p-1 rounded-lg bg-white/5">
+          <i :data-lucide="toast.icon || 'bell'" class="w-5 h-5" :class="{
+             'text-purple-400': toast.type === 'info',
+             'text-green-400': toast.type === 'success',
+             'text-yellow-400': toast.type === 'warning'
+           }"></i>
+        </div>
+        <div class="flex-1">
+          <h4 class="font-display font-semibold text-sm" x-text="toast.title"></h4>
+          <p class="text-xs text-zinc-400 mt-0.5" x-text="toast.message"></p>
+        </div>
+        <button @click="removeToast(toast.id)" class="text-zinc-500 hover:text-zinc-300">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </template>
+  </div>
+
+  <!-- MAIN APP CONTAINER -->
+  <div class="flex min-h-screen relative z-10">
+    
+    <!-- SIDEBAR -->
+    <aside class="w-64 glass-panel border-r border-white/5 flex flex-col shrink-0">
+      <!-- Logo / Header -->
+      <div class="p-6 border-b border-white/5 flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+          <i data-lucide="sparkles" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <h1 class="font-display font-bold text-base leading-none tracking-tight bg-gradient-to-r from-purple-400 to-indigo-300 bg-clip-text text-transparent">DecorArte</h1>
+          <p class="text-[10px] uppercase tracking-widest text-zinc-500 mt-1 font-semibold">Media Hub & LMS</p>
+        </div>
+      </div>
+      
+      <!-- Nav Links -->
+      <nav class="flex-1 py-6 px-4 space-y-1.5 overflow-y-auto">
+        <!-- Render Sidebar Tabs depending on Role Access -->
+        <template x-for="item in navItems">
+          <button x-show="hasAccess(item.requiredPerm)"
+                  @click="activeTab = item.id"
+                  class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/5 transition-all"
+                  :class="activeTab === item.id ? 'active-nav' : ''">
+            <i :data-lucide="item.icon" class="w-4 h-4"></i>
+            <span x-text="item.label"></span>
+          </button>
+        </template>
+      </nav>
+
+      <!-- Bottom User Card -->
+      <div class="p-4 border-t border-white/5 bg-black/20 flex flex-col gap-3">
+        <div class="flex items-center gap-3">
+          <img :src="user.avatar_url" class="w-10 h-10 rounded-xl object-cover border border-white/10" alt="Avatar">
+          <div class="flex-1 min-w-0">
+            <h4 class="font-semibold text-sm truncate" x-text="user.name"></h4>
+            <div class="flex items-center gap-1.5 mt-0.5">
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 font-medium uppercase tracking-wider" x-text="user.role"></span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Gamification Level Mini-bar -->
+        <div class="pt-1 border-t border-white/5" x-show="user.role !== 'visualizador'">
+          <div class="flex justify-between text-[10px] text-zinc-500 mb-1">
+            <span>Experiencia (XP)</span>
+            <span class="font-bold text-zinc-300" x-text="`${user.xp} XP`"></span>
+          </div>
+          <div class="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+            <div class="bg-gradient-to-r from-purple-500 to-indigo-500 h-1.5 rounded-full transition-all duration-500" :style="`width: ${Math.min((user.xp % 100), 100)}%`"></div>
+          </div>
+        </div>
+
+        <!-- Role Simulator Switcher -->
+        <div class="mt-2">
+          <label class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1 block">Simular Rol (Demo)</label>
+          <select @change="changeRole($el.value)" class="w-full bg-zinc-900 border border-white/10 rounded-lg py-1.5 px-2 text-xs text-zinc-300 focus:outline-none focus:border-purple-500">
+            <option value="admin" :selected="user.role === 'admin'">Administrador General</option>
+            <option value="supervisor" :selected="user.role === 'supervisor'">Supervisor</option>
+            <option value="editor" :selected="user.role === 'editor'">Editor</option>
+            <option value="instructor" :selected="user.role === 'instructor'">Instructor</option>
+            <option value="empleado" :selected="user.role === 'empleado'">Empleado</option>
+            <option value="alumno" :selected="user.role === 'alumno'">Alumno</option>
+            <option value="visualizador" :selected="user.role === 'visualizador'">Visualizador</option>
+          </select>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CONTENT WRAPPER -->
+    <main class="flex-1 flex flex-col min-w-0">
+      
+      <!-- TOP HEADER BAR -->
+      <header class="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-black/10 backdrop-blur-md sticky top-0 z-20">
+        <div class="flex items-center gap-4">
+          <h2 class="font-display font-bold text-lg text-zinc-200 capitalize" x-text="activeTab.replace('-', ' ')"></h2>
+          <!-- Live Websocket Connection Status -->
+          <span class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+            Conectado Realtime
+          </span>
+        </div>
+        
+        <div class="flex items-center gap-4">
+          <!-- Time and Date display -->
+          <div class="text-right text-xs text-zinc-500 hidden sm:block">
+            <div class="font-medium text-zinc-300" x-text="currentTime"></div>
+            <div class="text-[10px]">22 de Mayo de 2026</div>
+          </div>
+          <!-- Quick Action Buttons -->
+          <button class="p-2 rounded-lg hover:bg-white/5 text-zinc-400 hover:text-zinc-200 transition-all relative">
+            <i data-lucide="bell" class="w-5 h-5"></i>
+            <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-purple-500"></span>
+          </button>
+        </div>
+      </header>
+
+      <!-- MAIN TABS CONTAINER -->
+      <div class="flex-1 p-8 overflow-y-auto">
+
+        <!-- 1. TAB: DASHBOARD GENERAL -->
+        <div x-show="activeTab === 'dashboard'" class="space-y-8">
+          <!-- KPI Grid -->
+          <div class="grid grid-cols-2 lg:grid-cols-6 gap-4">
+            <!-- TikTok KPI -->
+            <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+              <div class="flex items-center justify-between text-zinc-400">
+                <span class="text-xs font-semibold uppercase tracking-wider">TikTok Views</span>
+                <i data-lucide="video" class="w-4 h-4 text-purple-400"></i>
+              </div>
+              <div class="mt-4">
+                <h3 class="font-display font-bold text-2xl" x-text="metrics.social.tiktok.count"></h3>
+                <span class="text-xs text-emerald-400 font-medium flex items-center gap-1 mt-1">
+                  <i data-lucide="trending-up" class="w-3 h-3"></i> <span x-text="metrics.social.tiktok.trend"></span>
+                </span>
+              </div>
+            </div>
+            <!-- Instagram KPI -->
+            <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+              <div class="flex items-center justify-between text-zinc-400">
+                <span class="text-xs font-semibold uppercase tracking-wider">Instagram Engagement</span>
+                <i data-lucide="instagram" class="w-4 h-4 text-pink-400"></i>
+              </div>
+              <div class="mt-4">
+                <h3 class="font-display font-bold text-2xl" x-text="metrics.social.instagram.count"></h3>
+                <span class="text-xs text-emerald-400 font-medium flex items-center gap-1 mt-1">
+                  <i data-lucide="trending-up" class="w-3 h-3"></i> <span x-text="metrics.social.instagram.trend"></span>
+                </span>
+              </div>
+            </div>
+            <!-- Facebook KPI -->
+            <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+              <div class="flex items-center justify-between text-zinc-400">
+                <span class="text-xs font-semibold uppercase tracking-wider">Facebook Likes</span>
+                <i data-lucide="facebook" class="w-4 h-4 text-blue-400"></i>
+              </div>
+              <div class="mt-4">
+                <h3 class="font-display font-bold text-2xl" x-text="metrics.social.facebook.count"></h3>
+                <span class="text-xs text-emerald-400 font-medium flex items-center gap-1 mt-1">
+                  <i data-lucide="trending-up" class="w-3 h-3"></i> <span x-text="metrics.social.facebook.trend"></span>
+                </span>
+              </div>
+            </div>
+            <!-- YouTube KPI -->
+            <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+              <div class="flex items-center justify-between text-zinc-400">
+                <span class="text-xs font-semibold uppercase tracking-wider">YouTube Watch</span>
+                <i data-lucide="youtube" class="w-4 h-4 text-red-400"></i>
+              </div>
+              <div class="mt-4">
+                <h3 class="font-display font-bold text-2xl" x-text="metrics.social.youtube.count"></h3>
+                <span class="text-xs text-emerald-400 font-medium flex items-center gap-1 mt-1">
+                  <i data-lucide="trending-up" class="w-3 h-3"></i> <span x-text="metrics.social.youtube.trend"></span>
+                </span>
+              </div>
+            </div>
+            <!-- Website KPI -->
+            <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+              <div class="flex items-center justify-between text-zinc-400">
+                <span class="text-xs font-semibold uppercase tracking-wider">Visitas Web</span>
+                <i data-lucide="globe" class="w-4 h-4 text-teal-400"></i>
+              </div>
+              <div class="mt-4">
+                <h3 class="font-display font-bold text-2xl" x-text="metrics.social.website.count"></h3>
+                <span class="text-xs text-emerald-400 font-medium flex items-center gap-1 mt-1">
+                  <i data-lucide="trending-up" class="w-3 h-3"></i> <span x-text="metrics.social.website.trend"></span>
+                </span>
+              </div>
+            </div>
+            <!-- WhatsApp KPI -->
+            <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+              <div class="flex items-center justify-between text-zinc-400">
+                <span class="text-xs font-semibold uppercase tracking-wider">WhatsApp Leads</span>
+                <i data-lucide="message-square" class="w-4 h-4 text-green-400"></i>
+              </div>
+              <div class="mt-4">
+                <h3 class="font-display font-bold text-2xl" x-text="metrics.social.whatsapp.count"></h3>
+                <span class="text-xs text-emerald-400 font-medium flex items-center gap-1 mt-1">
+                  <i data-lucide="trending-up" class="w-3 h-3"></i> <span x-text="metrics.social.whatsapp.trend"></span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mid Section: Queue Rendering & AI Suggestions -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left: Rendering Queue & Active Jobs -->
+            <div class="glass-panel p-6 rounded-2xl col-span-2 space-y-6">
+              <div class="flex justify-between items-center">
+                <h3 class="font-display font-bold text-base flex items-center gap-2">
+                  <i data-lucide="loader" class="w-5 h-5 text-purple-400 animate-spin"></i>
+                  Cola de Procesamiento de Video (FFmpeg Workers)
+                </h3>
+                <span class="text-xs text-zinc-400" x-text="Object.keys(renderingJobs).length + ' tareas'"></span>
+              </div>
+              
+              <div class="space-y-4">
+                <template x-if="Object.keys(renderingJobs).length === 0">
+                  <div class="text-center py-8 text-zinc-500 text-sm">
+                    <p>No hay videos renderizándose actualmente.</p>
+                    <button @click="activeTab = 'editor'" class="mt-3 px-4 py-1.5 rounded-lg bg-purple-600/10 text-purple-400 border border-purple-500/20 text-xs font-semibold hover:bg-purple-600/20 transition-all">
+                      Ir al Editor IA
+                    </button>
+                  </div>
+                </template>
+                <template x-for="job in renderingJobs" :key="job.id">
+                  <div class="p-4 bg-white/5 rounded-xl border border-white/5 space-y-2">
+                    <div class="flex justify-between items-start">
+                      <div>
+                        <h4 class="font-semibold text-sm" x-text="job.title"></h4>
+                        <p class="text-xs text-zinc-500" x-text="`Workflow: ${job.workflow} | ID: ${job.id}`"></p>
+                      </div>
+                      <span class="text-xs uppercase tracking-wider px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/20 font-bold" x-text="job.status"></span>
+                    </div>
+                    <!-- ProgressBar -->
+                    <div class="flex items-center gap-3">
+                      <div class="flex-1 bg-zinc-800 rounded-full h-2 overflow-hidden">
+                        <div class="bg-gradient-to-r from-purple-500 to-indigo-500 h-2 rounded-full transition-all duration-300" :style="`width: ${job.progress}%`"></div>
+                      </div>
+                      <span class="text-xs font-semibold font-mono text-zinc-300" x-text="`${job.progress}%`"></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- Right: AI Advice -->
+            <div class="glass-panel p-6 rounded-2xl space-y-6">
+              <h3 class="font-display font-bold text-base flex items-center gap-2">
+                <i data-lucide="sparkles" class="w-5 h-5 text-amber-400"></i>
+                Producer AI: Recomendaciones
+              </h3>
+              <div class="space-y-4">
+                <template x-for="sugg in metrics.aiSuggestions">
+                  <div class="p-4 bg-amber-500/5 rounded-xl border border-amber-500/10 text-xs leading-relaxed text-zinc-300">
+                    <span class="font-semibold text-amber-400 flex items-center gap-1.5 mb-1">
+                      <i data-lucide="lightbulb" class="w-3.5 h-3.5"></i> SUGERENCIA
+                    </span>
+                    <span x-text="sugg"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom: Team Activity Feed & General Calendar -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left: Team Activity -->
+            <div class="glass-panel p-6 rounded-2xl space-y-6">
+              <h3 class="font-display font-bold text-base">Actividad del Equipo</h3>
+              <div class="space-y-4">
+                <template x-for="act in metrics.activity">
+                  <div class="flex items-start gap-3 text-xs">
+                    <div class="w-2 h-2 rounded-full bg-purple-500 mt-1.5 shrink-0"></div>
+                    <div class="flex-1">
+                      <p class="text-zinc-300"><strong class="text-zinc-200" x-text="act.user"></strong> <span x-text="act.action"></span></p>
+                      <span class="text-[10px] text-zinc-500 mt-0.5 block" x-text="act.time"></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- Right: Post Calendar preview -->
+            <div class="glass-panel p-6 rounded-2xl col-span-2 space-y-6">
+              <h3 class="font-display font-bold text-base">Calendario de Publicaciones (Programadas)</h3>
+              <div class="grid grid-cols-4 gap-4 text-center">
+                <div class="p-3 bg-white/5 border border-white/5 rounded-xl">
+                  <span class="text-[10px] uppercase text-zinc-500 font-semibold block">Viernes 22</span>
+                  <div class="mt-2 text-xs font-semibold text-emerald-400 flex items-center justify-center gap-1">
+                    <i data-lucide="check-circle-2" class="w-3 h-3"></i> Publicado
+                  </div>
+                  <span class="text-[10px] text-zinc-500 block mt-1">1 Receta de Fresa</span>
+                </div>
+                <div class="p-3 bg-white/5 border border-white/5 rounded-xl">
+                  <span class="text-[10px] uppercase text-zinc-500 font-semibold block">Sábado 23</span>
+                  <div class="mt-2 text-xs font-semibold text-yellow-400 flex items-center justify-center gap-1">
+                    <i data-lucide="clock" class="w-3 h-3"></i> Aprobado
+                  </div>
+                  <span class="text-[10px] text-zinc-500 block mt-1">1 Cupcake Reel</span>
+                </div>
+                <div class="p-3 bg-white/5 border border-white/5 rounded-xl">
+                  <span class="text-[10px] uppercase text-zinc-500 font-semibold block">Domingo 24</span>
+                  <div class="mt-2 text-xs font-semibold text-purple-400 flex items-center justify-center gap-1">
+                    <i data-lucide="plus-circle" class="w-3 h-3"></i> Pendiente
+                  </div>
+                  <span class="text-[10px] text-zinc-500 block mt-1">Rutina Producción</span>
+                </div>
+                <div class="p-3 bg-white/5 border border-white/5 rounded-xl">
+                  <span class="text-[10px] uppercase text-zinc-500 font-semibold block">Lunes 25</span>
+                  <div class="mt-2 text-xs font-semibold text-zinc-500 flex items-center justify-center gap-1">
+                    <i data-lucide="file-text" class="w-3 h-3"></i> Borrador
+                  </div>
+                  <span class="text-[10px] text-zinc-500 block mt-1">Curso Promo</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. TAB: GESTOR DE REDES SOCIALES -->
+        <div x-show="activeTab === 'social-hub'" class="space-y-8">
+          <!-- Connect platforms / Accounts connected -->
+          <div class="glass-panel p-6 rounded-2xl space-y-6">
+            <h3 class="font-display font-bold text-base">Cuentas Conectadas (APIs Oficiales)</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <template x-for="acc in socialAccounts">
+                <div class="p-4 bg-white/5 border border-white/5 rounded-xl flex items-center gap-3">
+                  <img :src="acc.avatar" class="w-10 h-10 rounded-full object-cover border border-white/10" alt="Platform Avatar">
+                  <div>
+                    <h4 class="font-semibold text-sm" x-text="acc.username"></h4>
+                    <p class="text-xs text-zinc-500 flex items-center gap-1 uppercase">
+                      <span class="w-2 h-2 rounded-full" :class="{
+                        'bg-purple-500': acc.platform === 'tiktok',
+                        'bg-pink-500': acc.platform === 'instagram',
+                        'bg-blue-500': acc.platform === 'facebook',
+                        'bg-red-500': acc.platform === 'youtube'
+                      }"></span>
+                      <span x-text="acc.platform"></span> • <span class="text-zinc-300 font-bold" x-text="acc.followers"></span>
+                    </p>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left 2 Cols: Calendar and Queue of Scheduled Posts -->
+            <div class="glass-panel p-6 rounded-2xl col-span-2 space-y-6">
+              <div class="flex justify-between items-center">
+                <h3 class="font-display font-bold text-base">Bandeja de Publicaciones Programadas</h3>
+                <!-- Trigger Creation Modal -->
+                <button @click="showScheduleModal = true" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 font-semibold text-xs transition-all flex items-center gap-1.5">
+                  <i data-lucide="plus" class="w-4 h-4"></i> Programar Publicación
+                </button>
+              </div>
+
+              <!-- Posts table -->
+              <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr class="border-b border-white/5 text-zinc-500 uppercase tracking-wider font-semibold">
+                      <th class="pb-3">Canal</th>
+                      <th class="pb-3">Copy / Caption</th>
+                      <th class="pb-3">Fecha de Programación</th>
+                      <th class="pb-3">Estado</th>
+                      <th class="pb-3">Métricas (Live)</th>
+                      <th class="pb-3 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-white/5">
+                    <template x-for="post in posts" :key="post.id">
+                      <tr class="hover:bg-white/5 transition-all">
+                        <td class="py-4">
+                          <span class="capitalize px-2 py-0.5 rounded text-[10px] font-bold border" :class="{
+                            'bg-purple-500/10 text-purple-400 border-purple-500/20': post.platform === 'tiktok',
+                            'bg-pink-500/10 text-pink-400 border-pink-500/20': post.platform === 'instagram',
+                            'bg-blue-500/10 text-blue-400 border-blue-500/20': post.platform === 'facebook',
+                            'bg-red-500/10 text-red-400 border-red-500/20': post.platform === 'youtube'
+                          }" x-text="post.platform"></span>
+                        </td>
+                        <td class="py-4 max-w-xs truncate" x-text="post.caption"></td>
+                        <td class="py-4 text-zinc-400" x-text="new Date(post.scheduled_for).toLocaleString()"></td>
+                        <td class="py-4">
+                          <span class="capitalize px-2 py-0.5 rounded-[4px] text-[10px] font-semibold" :class="{
+                            'bg-zinc-800 text-zinc-400': post.status === 'draft',
+                            'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20': post.status === 'pending',
+                            'bg-purple-500/10 text-purple-400 border border-purple-500/20': post.status === 'approved',
+                            'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20': post.status === 'published'
+                          }" x-text="post.status"></span>
+                        </td>
+                        <td class="py-4">
+                          <template x-if="post.status === 'published'">
+                            <span class="text-zinc-300 font-medium font-mono text-[10px]" x-text="`${post.analytics.views} views / ${post.analytics.likes} likes`"></span>
+                          </template>
+                          <template x-if="post.status !== 'published'">
+                            <span class="text-zinc-500">-</span>
+                          </template>
+                        </td>
+                        <td class="py-4 text-right">
+                          <template x-if="post.status === 'pending' && hasAccess('posts.approve')">
+                            <button @click="approvePost(post.id)" class="px-3 py-1 rounded bg-purple-600 hover:bg-purple-700 text-[10px] font-semibold transition-all">
+                              Aprobar
+                            </button>
+                          </template>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Right Col: Central Inbox for Comments / DMs -->
+            <div class="glass-panel p-6 rounded-2xl space-y-6 flex flex-col h-[500px]">
+              <h3 class="font-display font-bold text-base flex items-center gap-2">
+                <i data-lucide="message-square" class="w-5 h-5 text-indigo-400"></i>
+                Bandeja Central (Mensajes / Comentarios)
+              </h3>
+              
+              <div class="flex-1 overflow-y-auto space-y-4">
+                <template x-for="msg in inbox">
+                  <div class="p-3 bg-white/5 rounded-xl border border-white/5 relative" :class="!msg.read ? 'border-l-4 border-l-purple-500' : ''">
+                    <div class="flex justify-between items-start">
+                      <span class="font-bold text-xs" x-text="msg.sender"></span>
+                      <span class="text-[10px] px-1.5 py-0.2 rounded font-semibold uppercase text-zinc-400 bg-white/5" x-text="msg.platform"></span>
+                    </div>
+                    <p class="text-xs text-zinc-300 mt-1.5" x-text="msg.message"></p>
+                    
+                    <div class="mt-3 flex gap-2">
+                      <input type="text" placeholder="Escribir respuesta..." :id="`reply-input-${msg.id}`" class="flex-1 bg-zinc-900 border border-white/5 rounded px-2 py-1 text-[10px] focus:outline-none focus:border-purple-500 text-zinc-200">
+                      <button @click="sendReply(msg.id)" class="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-[10px] font-bold rounded transition-all">
+                        Enviar
+                      </button>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. TAB: CENTRO IA DE PRODUCCIÓN -->
+        <div x-show="activeTab === 'production-hub'" class="space-y-8">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left 2 Cols: Workflows Configurator -->
+            <div class="glass-panel p-6 rounded-2xl col-span-2 space-y-6">
+              <h3 class="font-display font-bold text-base">Crear Vídeo con Workflow IA</h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label class="text-xs text-zinc-400 font-semibold mb-2 block">Título del Proyecto</label>
+                  <input type="text" x-model="iaVideoForm.title" placeholder="Ej. Tarta de Fresa Especial" class="w-full bg-zinc-900 border border-white/10 rounded-xl py-2 px-3 text-sm focus:outline-none focus:border-purple-500">
+                </div>
+                <div>
+                  <label class="text-xs text-zinc-400 font-semibold mb-2 block">Workflow Objetivo</label>
+                  <select x-model="iaVideoForm.workflow" class="w-full bg-zinc-900 border border-white/10 rounded-xl py-2 px-3 text-sm focus:outline-none focus:border-purple-500">
+                    <option value="TIP REPOSTERÍA">TIP REPOSTERÍA (30s, Tutorial, Subtítulos, Voz)</option>
+                    <option value="CAPACITACIÓN">CAPACITACIÓN (2m, Educativo, Video RH)</option>
+                    <option value="PROMOCIÓN">PROMOCIÓN (15s, Venta, Oferta, CTA)</option>
+                    <option value="ANUNCIO">ANUNCIO (30s, Corporativo, Lanzamiento)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label class="text-xs text-zinc-400 font-semibold mb-2 block">Descripción Detallada (Prompt para OMNI / Seedance)</label>
+                <textarea rows="4" x-model="iaVideoForm.prompt" placeholder="Describe los ingredientes, tomas macro, y CTA..." class="w-full bg-zinc-900 border border-white/10 rounded-xl py-2 px-3 text-sm focus:outline-none focus:border-purple-500"></textarea>
+              </div>
+
+              <div class="flex justify-end gap-3">
+                <button @click="generateScriptFromIA()" class="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold transition-all">
+                  Generar Guión con IA
+                </button>
+                <button @click="renderIAVideo()" class="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 font-bold text-xs transition-all flex items-center gap-1.5">
+                  <i data-lucide="play" class="w-4 h-4"></i> Iniciar Renderizado IA
+                </button>
+              </div>
+
+              <!-- Visual Script Display -->
+              <div x-show="generatedScript" class="p-5 bg-white/5 rounded-xl border border-white/5 space-y-3">
+                <h4 class="font-display font-semibold text-sm text-purple-400 flex items-center gap-1.5">
+                  <i data-lucide="file-text" class="w-4 h-4"></i> Guión IA Generado (Estructura de Escenas)
+                </h4>
+                <div class="text-xs text-zinc-300 leading-relaxed font-mono whitespace-pre-line" x-text="generatedScript"></div>
+              </div>
+            </div>
+
+            <!-- Right Col: Active Workflow Info Cards -->
+            <div class="glass-panel p-6 rounded-2xl space-y-6">
+              <h3 class="font-display font-bold text-base">Estructuras del Workflow</h3>
+              <div class="space-y-4 text-xs">
+                <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                  <h4 class="font-bold text-purple-400">TIP REPOSTERÍA (30s)</h4>
+                  <ul class="list-disc pl-4 mt-2 space-y-1 text-zinc-400">
+                    <li>0-5s: Gancho visual fuerte</li>
+                    <li>5-20s: El secreto/proceso (macro)</li>
+                    <li>20-25s: Resultado tentador</li>
+                    <li>25-30s: CTA a la Academia</li>
+                  </ul>
+                </div>
+                <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                  <h4 class="font-bold text-indigo-400">CAPACITACIÓN (2m)</h4>
+                  <ul class="list-disc pl-4 mt-2 space-y-1 text-zinc-400">
+                    <li>0-15s: Objetivo del aprendizaje</li>
+                    <li>15-90s: Paso a paso con subtítulos</li>
+                    <li>90-120s: Evaluación y resumen</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. TAB: EDITOR DE VIDEO IA -->
+        <div x-show="activeTab === 'editor'" class="space-y-8">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left 2 Cols: Main Editor Workspace (Canva / CapCut Style) -->
+            <div class="glass-panel p-6 rounded-2xl col-span-2 space-y-6">
+              <!-- Video Preview Panel -->
+              <div class="relative w-full aspect-video rounded-xl overflow-hidden bg-black flex items-center justify-center border border-white/10 group">
+                <video id="editor-video-element" class="w-full h-full object-cover" src="https://assets.mixkit.co/videos/preview/mixkit-decorating-a-chocolate-cake-with-strawberries-40742-large.mp4" loop></video>
+                <!-- Central Overlay Controls -->
+                <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button @click="togglePlayVideo()" class="w-16 h-16 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md flex items-center justify-center text-white transition-all transform scale-95 group-hover:scale-100">
+                    <i id="play-icon" data-lucide="play" class="w-8 h-8 fill-white text-white"></i>
+                  </button>
+                </div>
+                <!-- Top Badge -->
+                <span class="absolute top-4 left-4 px-3 py-1 rounded bg-black/60 text-white text-[10px] font-bold tracking-wider uppercase border border-white/5 flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                  Preview 1080p (TikTok format fit)
+                </span>
+              </div>
+
+              <!-- Draggable Clips & Media Assets -->
+              <div>
+                <h4 class="text-xs text-zinc-400 font-semibold mb-3">Biblioteca Multimedia & Clips</h4>
+                <div class="grid grid-cols-4 gap-4">
+                  <div class="relative aspect-video rounded-lg overflow-hidden bg-zinc-900 border border-white/10 hover:border-purple-500 transition-all cursor-pointer">
+                    <img src="https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=200" class="w-full h-full object-cover" alt="Pastel">
+                    <span class="absolute bottom-1 right-1 text-[8px] bg-black/80 px-1 rounded">12s</span>
+                  </div>
+                  <div class="relative aspect-video rounded-lg overflow-hidden bg-zinc-900 border border-white/10 hover:border-purple-500 transition-all cursor-pointer">
+                    <img src="https://images.unsplash.com/photo-1550617931-e17a7b70dce2?w=200" class="w-full h-full object-cover" alt="Pastel">
+                    <span class="absolute bottom-1 right-1 text-[8px] bg-black/80 px-1 rounded">8s</span>
+                  </div>
+                  <div class="relative aspect-video rounded-lg overflow-hidden bg-zinc-900 border border-white/10 hover:border-purple-500 transition-all cursor-pointer">
+                    <img src="https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200" class="w-full h-full object-cover" alt="Pastel">
+                    <span class="absolute bottom-1 right-1 text-[8px] bg-black/80 px-1 rounded">15s</span>
+                  </div>
+                  <!-- Add clip button -->
+                  <div class="aspect-video rounded-lg border border-dashed border-white/10 flex flex-col items-center justify-center text-zinc-500 hover:text-zinc-300 hover:border-purple-500/50 cursor-pointer transition-all">
+                    <i data-lucide="plus" class="w-5 h-5 mb-1"></i>
+                    <span class="text-[9px] uppercase font-bold tracking-wider">Subir Media</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- TIMELINE PANEL -->
+              <div class="p-4 bg-black/30 rounded-xl border border-white/5 space-y-4">
+                <div class="flex justify-between items-center text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">
+                  <span>Línea de Tiempo (Timeline)</span>
+                  <span>00:15 / 00:30</span>
+                </div>
+                
+                <div class="space-y-2">
+                  <!-- Video Track -->
+                  <div class="h-10 bg-purple-500/10 border border-purple-500/20 rounded-lg flex items-center relative overflow-hidden">
+                    <span class="absolute left-3 text-[10px] font-semibold text-purple-300 flex items-center gap-1.5">
+                      <i data-lucide="video" class="w-3.5 h-3.5"></i> Video Track (Corte de Silencios Activo)
+                    </span>
+                    <div class="absolute right-0 top-0 bottom-0 bg-white/5 w-1/3 border-l border-white/10"></div>
+                  </div>
+                  
+                  <!-- Audio / Voice Track -->
+                  <div class="h-8 bg-indigo-500/10 border border-indigo-500/20 rounded-lg flex items-center relative overflow-hidden">
+                    <span class="absolute left-3 text-[10px] font-semibold text-indigo-300 flex items-center gap-1.5">
+                      <i data-lucide="mic" class="w-3.5 h-3.5"></i> Voz en Off (IA Voice)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Col: IA Editor Actions -->
+            <div class="glass-panel p-6 rounded-2xl space-y-6">
+              <h3 class="font-display font-bold text-base">Acciones Inteligentes (IA)</h3>
+              
+              <div class="space-y-4">
+                <button @click="trimSilences()" class="w-full py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 text-left text-xs font-semibold flex items-center gap-3 transition-all">
+                  <div class="p-1.5 rounded-lg bg-purple-500/10 text-purple-400">
+                    <i data-lucide="volume-x" class="w-4 h-4"></i>
+                  </div>
+                  <div>
+                    <h4 class="font-bold">Eliminar Silencios Automático</h4>
+                    <p class="text-[10px] text-zinc-400 mt-0.5">Corta pausas y ruidos de fondo en un clic.</p>
+                  </div>
+                </button>
+
+                <button @click="generateSubtitles()" class="w-full py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 text-left text-xs font-semibold flex items-center gap-3 transition-all">
+                  <div class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
+                    <i data-lucide="languages" class="w-4 h-4"></i>
+                  </div>
+                  <div>
+                    <h4 class="font-bold">Generar Subtítulos de Video</h4>
+                    <p class="text-[10px] text-zinc-400 mt-0.5">Autotranscripción en base a la pista de audio.</p>
+                  </div>
+                </button>
+
+                <!-- Export Presets -->
+                <div class="pt-4 border-t border-white/5">
+                  <label class="text-[10px] uppercase text-zinc-500 font-bold block mb-3">Exportar Preset</label>
+                  <div class="grid grid-cols-2 gap-2 text-center text-[10px] font-bold">
+                    <button @click="exportVideo('tiktok')" class="p-2.5 bg-purple-600 hover:bg-purple-700 rounded-lg transition-all flex flex-col items-center justify-center gap-1">
+                      <i data-lucide="video" class="w-4 h-4"></i> TikTok (9:16)
+                    </button>
+                    <button @click="exportVideo('youtube')" class="p-2.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-all flex flex-col items-center justify-center gap-1">
+                      <i data-lucide="youtube" class="w-4 h-4"></i> YouTube (16:9)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. TAB: ACADEMIA LMS -->
+        <div x-show="activeTab === 'academy'" class="space-y-8">
+          <!-- Courses Cards Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <template x-for="course in courses" :key="course.id">
+              <div class="glass-card rounded-2xl overflow-hidden flex flex-col justify-between">
+                <img :src="course.thumbnail_url" class="h-40 w-full object-cover border-b border-white/5" alt="Course Thumbnail">
+                <div class="p-5 flex-1 flex flex-col justify-between space-y-4">
+                  <div>
+                    <span class="text-[9px] uppercase tracking-wider text-purple-400 font-bold" x-text="course.category"></span>
+                    <h4 class="font-display font-semibold text-sm mt-1" x-text="course.title"></h4>
+                    <p class="text-xs text-zinc-400 mt-1.5 line-clamp-2" x-text="course.description"></p>
+                  </div>
+                  
+                  <div class="flex items-center justify-between text-xs pt-3 border-t border-white/5">
+                    <span class="text-[10px] text-zinc-500 font-mono" x-text="`Recompensa: +${course.xp_reward} XP`"></span>
+                    <button @click="viewCourseDetails(course.id)" class="px-3 py-1 rounded bg-purple-600 hover:bg-purple-700 text-[10px] font-bold transition-all">
+                      Iniciar Curso
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Active Lesson Modal / Details view -->
+          <div x-show="activeCourse" class="glass-panel p-6 rounded-2xl space-y-6">
+            <div class="flex justify-between items-start border-b border-white/5 pb-4">
+              <div>
+                <h3 class="font-display font-bold text-lg text-purple-400" x-text="activeCourse.course.title"></h3>
+                <p class="text-xs text-zinc-400 mt-1" x-text="activeCourse.course.description"></p>
+              </div>
+              <button @click="activeCourse = null" class="text-zinc-500 hover:text-zinc-300">
+                <i data-lucide="x" class="w-5 h-5"></i>
+              </button>
+            </div>
+
+            <!-- Modules & Lessons list -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <!-- Left: Modules & Lessons selector -->
+              <div class="space-y-4 col-span-1">
+                <h4 class="text-xs font-semibold text-zinc-400 uppercase tracking-widest">Lecciones del Curso</h4>
+                <div class="space-y-3">
+                  <template x-for="mod in activeCourse.modules" :key="mod.id">
+                    <div class="space-y-1.5">
+                      <span class="text-[10px] uppercase font-bold text-zinc-500 block" x-text="mod.title"></span>
+                      <template x-for="les in mod.lessons" :key="les.id">
+                        <button @click="selectLesson(les)" class="w-full text-left p-2.5 rounded-lg text-xs font-semibold transition-all hover:bg-white/5 border border-white/5"
+                                :class="selectedLesson && selectedLesson.id === les.id ? 'border-purple-500/50 bg-purple-500/5 text-purple-300' : 'text-zinc-300'">
+                          <div class="flex items-center justify-between">
+                            <span class="truncate" x-text="les.title"></span>
+                            <span class="text-[9px] text-zinc-500 font-mono" x-text="`${les.duration_minutes}m`"></span>
+                          </div>
+                        </button>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Right: Content Player -->
+              <div class="col-span-2 space-y-4">
+                <template x-if="!selectedLesson">
+                  <div class="h-64 rounded-xl border border-dashed border-white/10 flex flex-col items-center justify-center text-zinc-500 text-sm">
+                    <p>Selecciona una lección para iniciar.</p>
+                  </div>
+                </template>
+                <template x-if="selectedLesson">
+                  <div class="space-y-4">
+                    <h4 class="font-display font-semibold text-base" x-text="selectedLesson.title"></h4>
+                    
+                    <template x-if="selectedLesson.content_type === 'video'">
+                      <div class="relative aspect-video rounded-xl overflow-hidden bg-black border border-white/10">
+                        <video class="w-full h-full object-cover" :src="selectedLesson.video_url" controls></video>
+                      </div>
+                    </template>
+                    <template x-if="selectedLesson.content_type === 'pdf'">
+                      <div class="p-8 rounded-xl border border-white/5 bg-white/5 text-center space-y-4">
+                        <i data-lucide="file-text" class="w-12 h-12 mx-auto text-purple-400"></i>
+                        <div>
+                          <h5 class="font-semibold text-sm">Documento de Capacitación Adjunto</h5>
+                          <p class="text-xs text-zinc-400 mt-1">Descarga el manual de pesaje para repostería en formato PDF.</p>
+                        </div>
+                        <a href="#" class="inline-block px-4 py-2 bg-purple-600 hover:bg-purple-700 text-xs font-bold rounded-lg transition-all">
+                          Descargar PDF
+                        </a>
+                      </div>
+                    </template>
+
+                    <div class="flex justify-end pt-2">
+                      <button @click="completeLesson(selectedLesson.id)" class="px-5 py-2 bg-green-600 hover:bg-green-700 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5">
+                        <i data-lucide="check" class="w-4 h-4"></i> Completar Lección
+                      </button>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. TAB: GESTOR DE TAREAS (MONDAY STYLE) -->
+        <div x-show="activeTab === 'task-board'" class="space-y-8">
+          <!-- Top Area Selectors -->
+          <div class="flex justify-between items-center">
+            <div class="flex gap-2">
+              <template x-for="area in ['cajas', 'produccion', 'almacen', 'compras', 'limpieza', 'ventas', 'marketing']">
+                <button @click="selectedArea = area" class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all border"
+                        :class="selectedArea === area ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' : 'bg-white/5 text-zinc-400 border-white/5 hover:text-zinc-200'"
+                        x-text="area">
+                </button>
+              </template>
+            </div>
+            
+            <button @click="showAddTaskModal = true" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-xs font-semibold transition-all flex items-center gap-1.5">
+              <i data-lucide="plus" class="w-4 h-4"></i> Crear Tarea
+            </button>
+          </div>
+
+          <!-- Tasks Table -->
+          <div class="glass-panel p-6 rounded-2xl space-y-6">
+            <h3 class="font-display font-bold text-base capitalize" x-text="`Tareas de la sección: ${selectedArea}`"></h3>
+            
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="border-b border-white/5 text-zinc-500 uppercase font-semibold">
+                    <th class="pb-3 w-10">Arqueo</th>
+                    <th class="pb-3">Nombre de Tarea</th>
+                    <th class="pb-3">Asignado</th>
+                    <th class="pb-3">Prioridad</th>
+                    <th class="pb-3">Estado</th>
+                    <th class="pb-3">Evidencia</th>
+                    <th class="pb-3 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5">
+                  <template x-for="task in tasks.filter(t => t.area === selectedArea)" :key="task.id">
+                    <tr class="hover:bg-white/5 transition-all">
+                      <td class="py-4">
+                        <input type="checkbox" :checked="task.status === 'completed'" @change="toggleTaskStatus(task)" class="rounded text-purple-600 focus:ring-purple-500/20 bg-zinc-900 border-white/10 w-4 h-4 cursor-pointer">
+                      </td>
+                      <td class="py-4">
+                        <div>
+                          <span class="font-semibold text-sm" :class="task.status === 'completed' ? 'line-through text-zinc-500' : 'text-zinc-200'" x-text="task.title"></span>
+                          <p class="text-[10px] text-zinc-500 mt-0.5" x-text="task.description"></p>
+                        </div>
+                      </td>
+                      <td class="py-4 text-zinc-400" x-text="task.assignee"></td>
+                      <td class="py-4">
+                        <span class="capitalize px-2 py-0.5 rounded-[4px] text-[10px] font-bold" :class="{
+                          'bg-red-500/10 text-red-400 border border-red-500/20': task.priority === 'critical',
+                          'bg-amber-500/10 text-amber-400 border border-amber-500/20': task.priority === 'high',
+                          'bg-blue-500/10 text-blue-400 border border-blue-500/20': task.priority === 'medium',
+                          'bg-zinc-800 text-zinc-500': task.priority === 'low'
+                        }" x-text="task.priority"></span>
+                      </td>
+                      <td class="py-4">
+                        <span class="capitalize px-2 py-0.5 rounded-[4px] text-[10px] font-semibold" :class="{
+                          'bg-zinc-800 text-zinc-400': task.status === 'pending',
+                          'bg-blue-500/15 text-blue-400': task.status === 'in_progress',
+                          'bg-amber-500/15 text-amber-400': task.status === 'under_review',
+                          'bg-emerald-500/15 text-emerald-400': task.status === 'completed'
+                        }" x-text="task.status"></span>
+                      </td>
+                      <td class="py-4">
+                        <template x-if="task.evidence_urls && task.evidence_urls.length > 0">
+                          <a :href="task.evidence_urls[0]" target="_blank" class="text-purple-400 hover:text-purple-300 font-semibold underline flex items-center gap-1">
+                            <i data-lucide="image" class="w-3.5 h-3.5"></i> Ver Foto
+                          </a>
+                        </template>
+                        <template x-if="!task.evidence_urls || task.evidence_urls.length === 0">
+                          <span class="text-zinc-500">Sin foto</span>
+                        </template>
+                      </td>
+                      <td class="py-4 text-right space-x-2">
+                        <template x-if="task.status !== 'completed'">
+                          <button @click="uploadEvidenceMock(task.id)" class="px-2 py-1 bg-white/5 hover:bg-white/10 text-[10px] font-bold rounded border border-white/5 transition-all">
+                            Subir Evidencia
+                          </button>
+                        </template>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 7. TAB: GESTOR DE PROMPTS -->
+        <div x-show="activeTab === 'prompts'" class="space-y-8">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left: Prompt Generator & Form -->
+            <div class="glass-panel p-6 rounded-2xl col-span-2 space-y-6">
+              <h3 class="font-display font-bold text-base">Generador y Biblioteca de Prompts</h3>
+              
+              <div class="space-y-4">
+                <div>
+                  <label class="text-xs text-zinc-400 font-semibold mb-2 block">Título del Prompt</label>
+                  <input type="text" x-model="promptForm.title" placeholder="Ej. Tarta de Chocolate Reel Directivas" class="w-full bg-zinc-900 border border-white/10 rounded-xl py-2 px-3 text-sm focus:outline-none focus:border-purple-500">
+                </div>
+                
+                <div>
+                  <label class="text-xs text-zinc-400 font-semibold mb-2 block">Categoría de Modelo</label>
+                  <select x-model="promptForm.category" class="w-full bg-zinc-900 border border-white/10 rounded-xl py-2 px-3 text-sm focus:outline-none focus:border-purple-500">
+                    <option value="tiktok">TikTok Video</option>
+                    <option value="flow">Flow AI Node</option>
+                    <option value="producer">Producer AI</option>
+                    <option value="ltx">LTX Video Render</option>
+                    <option value="gemini">Gemini Copys</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="text-xs text-zinc-400 font-semibold mb-2 block">Cuerpo del Prompt</label>
+                  <textarea rows="5" x-model="promptForm.prompt_text" placeholder="Escribe tu prompt crudo aquí..." class="w-full bg-zinc-900 border border-white/10 rounded-xl py-2 px-3 text-sm focus:outline-none focus:border-purple-500"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3">
+                  <button @click="polishPromptIA()" class="px-4 py-2 rounded-lg bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 text-xs font-semibold hover:bg-indigo-600/20 transition-all flex items-center gap-1.5">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i> Pulir Prompt con IA
+                  </button>
+                  <button @click="savePrompt()" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-xs font-bold rounded-lg transition-all">
+                    Guardar en Biblioteca
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Prompt Library List -->
+            <div class="glass-panel p-6 rounded-2xl space-y-6">
+              <h3 class="font-display font-bold text-base">Biblioteca Corporativa</h3>
+              <div class="space-y-4">
+                <template x-for="pr in prompts">
+                  <div class="p-3 bg-white/5 rounded-xl border border-white/5 text-xs space-y-2">
+                    <div class="flex justify-between items-center">
+                      <span class="font-bold text-purple-400 text-xs" x-text="pr.title"></span>
+                      <span class="text-[9px] uppercase tracking-wider font-bold text-zinc-500" x-text="pr.category"></span>
+                    </div>
+                    <p class="text-zinc-300 font-mono text-[10px] leading-relaxed line-clamp-3" x-text="pr.prompt_text"></p>
+                    <div class="flex justify-end pt-1">
+                      <button @click="loadPrompt(pr)" class="text-purple-400 hover:text-purple-300 font-semibold">
+                        Cargar en Editor
+                      </button>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8. TAB: AUTOMATIZACIONES (VISUAL RULES NODE) -->
+        <div x-show="activeTab === 'automations'" class="space-y-8">
+          <!-- Automation Active Rules -->
+          <div class="glass-panel p-6 rounded-2xl space-y-6">
+            <div class="flex justify-between items-center">
+              <h3 class="font-display font-bold text-base flex items-center gap-2">
+                <i data-lucide="git-branch" class="w-5 h-5 text-purple-400"></i>
+                Automatizaciones Condicionales Activas (Motor If-Then)
+              </h3>
+              <button @click="showAddRuleModal = true" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5">
+                <i data-lucide="plus" class="w-4 h-4"></i> Nueva Regla
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <template x-for="rule in rules" :key="rule.id">
+                <div class="p-5 bg-white/5 rounded-2xl border border-white/5 flex flex-col justify-between space-y-4">
+                  <div>
+                    <div class="flex justify-between items-start">
+                      <h4 class="font-semibold text-sm leading-snug" x-text="rule.name"></h4>
+                      <!-- Toggle rule state -->
+                      <button @click="toggleRule(rule.id)" class="w-9 h-5 rounded-full p-0.5 transition-colors focus:outline-none"
+                              :class="rule.is_active ? 'bg-purple-600' : 'bg-zinc-800'">
+                        <div class="w-4 h-4 rounded-full bg-white transition-transform transform"
+                             :class="rule.is_active ? 'translate-x-4' : 'translate-x-0'"></div>
+                      </button>
+                    </div>
+                    
+                    <div class="mt-4 space-y-2 text-xs">
+                      <div class="p-2 bg-white/5 rounded border border-white/5">
+                        <span class="text-[9px] uppercase tracking-wider text-purple-400 font-bold block">SI EVENTO</span>
+                        <code class="text-[10px] text-zinc-300" x-text="rule.trigger_config.event || 'custom_event'"></code>
+                      </div>
+                      <div class="p-2 bg-white/5 rounded border border-white/5">
+                        <span class="text-[9px] uppercase tracking-wider text-indigo-400 font-bold block">ENTONCES ACCIÓN</span>
+                        <code class="text-[10px] text-zinc-300" x-text="rule.action_config.action"></code>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+  </div>
+
+  <!-- POPUP MODALS -->
+  <!-- 1. Schedule Post Modal -->
+  <div x-show="showScheduleModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" x-cloak>
+    <div class="glass-panel max-w-md w-full p-6 rounded-2xl space-y-6">
+      <div class="flex justify-between items-center border-b border-white/5 pb-3">
+        <h3 class="font-display font-bold text-base">Programar Publicación</h3>
+        <button @click="showScheduleModal = false" class="text-zinc-500 hover:text-zinc-300">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs text-zinc-400 font-semibold mb-2 block">Plataforma</label>
+          <select id="post-platform-select" class="w-full bg-zinc-900 border border-white/10 rounded-xl py-2 px-3 text-sm text-zinc-300 focus:outline-none focus:border-purple-500">
+            <option value="tiktok">TikTok</option>
+            <option value="instagram">Instagram</option>
+            <option value="facebook">Facebook</option>
+            <option value="youtube">YouTube Shorts</option>
+          </select>
+        </div>
+        
+        <div>
+          <label class="text-xs text-zinc-400 font-semibold mb-2 block">Copy / Caption</label>
+          <textarea id="post-caption-textarea" rows="3" placeholder="Ingresa la descripción..." class="w-full bg-zinc-900 border border-white/10 rounded-xl py-2 px-3 text-sm focus:outline-none focus:border-purple-500"></textarea>
+        </div>
+
+        <div>
+          <label class="text-xs text-zinc-400 font-semibold mb-2 block">Programar para (Fecha y Hora)</label>
+          <input type="datetime-local" id="post-date-input" class="w-full bg-zinc-900 border border-white/10 rounded-xl py-2 px-3 text-sm text-zinc-300 focus:outline-none focus:border-purple-500">
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button @click="showScheduleModal = false" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold rounded-lg transition-all">
+          Cancelar
+        </button>
+        <button @click="submitPost()" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-xs font-bold rounded-lg transition-all">
+          Programar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Add Task Modal -->
+  <div x-show="showAddTaskModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" x-cloak>
+    <div class="glass-panel max-w-md w-full p-6 rounded-2xl space-y-6">
+      <div class="flex justify-between items-center border-b border-white/5 pb-3">
+        <h3 class="font-display font-bold text-base">Crear Nueva Tarea (Monday-style)</h3>
+        <button @click="showAddTaskModal = false" class="text-zinc-500 hover:text-zinc-300">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs text-zinc-400 font-semibold mb-2 block">Título de Tarea</label>
+          <input type="text" id="task-title-input" placeholder="Nombre de la tarea..." class="w-full bg-zinc-900 border border-white/10 rounded-xl py-2 px-3 text-sm focus:outline-none focus:border-purple-500">
+        </div>
+        
+        <div>
+          <label class="text-xs text-zinc-400 font-semibold mb-2 block">Descripción</label>
+          <textarea id="task-desc-textarea" rows="2" placeholder="Detalles de la tarea..." class="w-full bg-zinc-900 border border-white/10 rounded-xl py-2 px-3 text-sm focus:outline-none focus:border-purple-500"></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs text-zinc-400 font-semibold mb-2 block">Área Operativa</label>
+            <select id="task-area-select" class="w-full bg-zinc-900 border border-white/10 rounded-xl py-2 px-3 text-sm text-zinc-300 focus:outline-none focus:border-purple-500">
+              <option value="cajas">Cajas</option>
+              <option value="produccion" selected>Producción</option>
+              <option value="almacen">Almacén</option>
+              <option value="compras">Compras</option>
+              <option value="limpieza">Limpieza</option>
+              <option value="ventas">Ventas</option>
+              <option value="marketing">Marketing</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-zinc-400 font-semibold mb-2 block">Prioridad</label>
+            <select id="task-priority-select" class="w-full bg-zinc-900 border border-white/10 rounded-xl py-2 px-3 text-sm text-zinc-300 focus:outline-none focus:border-purple-500">
+              <option value="low">Baja</option>
+              <option value="medium" selected>Media</option>
+              <option value="high">Alta</option>
+              <option value="critical">Crítica</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button @click="showAddTaskModal = false" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold rounded-lg transition-all">
+          Cancelar
+        </button>
+        <button @click="submitTask()" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-xs font-bold rounded-lg transition-all">
+          Crear Tarea
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT STATE ENGINE -->
+  <script>
+    function decorarteHub() {
+      return {
+        // App State
+        activeTab: 'dashboard',
+        currentTime: '',
+        user: { id: 'u-1', name: 'Sofía DecorArte', email: 'admin@decorarte.com', role: 'admin', avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', permissions: ['all'], xp: 1200 },
+        
+        // Navigation configuration based on permissions matrix
+        navItems: [
+          { id: 'dashboard', label: 'Dashboard General', icon: 'layout', requiredPerm: 'analytics.view' },
+          { id: 'social-hub', label: 'Gestor Redes', icon: 'globe', requiredPerm: 'posts.create' },
+          { id: 'production-hub', label: 'Centro IA Producción', icon: 'sparkles', requiredPerm: 'video.edit' },
+          { id: 'editor', label: 'Editor Video IA', icon: 'video', requiredPerm: 'video.edit' },
+          { id: 'academy', label: 'Academia LMS', icon: 'graduation-cap', requiredPerm: 'courses.view' },
+          { id: 'task-board', label: 'Gestor Tareas', icon: 'clipboard-list', requiredPerm: 'tasks.view' },
+          { id: 'prompts', label: 'Librería Prompts', icon: 'file-text', requiredPerm: 'prompts.manage' },
+          { id: 'automations', label: 'Automatizaciones', icon: 'git-branch', requiredPerm: 'all' }
+        ],
+
+        // Data Arrays from API
+        metrics: { social: { tiktok: {}, instagram: {}, facebook: {}, youtube: {}, website: {}, whatsapp: {} }, activity: [], aiSuggestions: [] },
+        socialAccounts: [],
+        posts: [],
+        inbox: [],
+        tasks: [],
+        courses: [],
+        prompts: [],
+        rules: [],
+        
+        // Dynamic Component states
+        selectedArea: 'produccion',
+        activeCourse: null,
+        selectedLesson: null,
+        generatedScript: '',
+        renderingJobs: {}, // tracks realtime active renders
+        toasts: [],
+        
+        // Modal toggles
+        showScheduleModal: false,
+        showAddTaskModal: false,
+        showAddRuleModal: false,
+        
+        // Form Binds
+        iaVideoForm: { title: '', workflow: 'TIP REPOSTERÍA', prompt: '' },
+        promptForm: { title: '', category: 'tiktok', prompt_text: '' },
+        
+        // Websocket connection
+        socket: null,
+        
+        init() {
+          this.updateTime();
+          setInterval(() => this.updateTime(), 1000);
+          
+          // Connect WebSockets
+          this.connectSockets();
+          
+          // Fetch initial API data
+          this.fetchData();
+        },
+        
+        updateTime() {
+          const now = new Date();
+          this.currentTime = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        },
+        
+        connectSockets() {
+          const socketUrl = window.location.origin;
+          this.socket = io(socketUrl);
+          
+          this.socket.on('connect', () => {
+            console.log("Conectado con éxito al socket de DecorArte.");
+          });
+          
+          // Listen to background video renders
+          this.socket.on('job:status', (job) => {
+            if (job.status === 'completed') {
+              this.addToast('Video Completado', `El video "${job.title}" ha finalizado y se guardó en R2.`, 'success', 'video');
+              delete this.renderingJobs[job.id];
+              this.fetchData(); // reload posts lists
+            } else {
+              this.renderingJobs[job.id] = job;
+            }
+          });
+          
+          // Listen to post creation
+          this.socket.on('post:created', (post) => {
+            this.posts.unshift(post);
+            this.addToast('Nuevo Post Programado', `Publicación en ${post.platform} registrada para supervisar.`, 'info', 'clock');
+          });
+
+          // Listen to post approved
+          this.socket.on('post:approved', (post) => {
+            const index = this.posts.findIndex(p => p.id === post.id);
+            if (index !== -1) this.posts[index] = post;
+            this.addToast('Post Aprobado', `Publicación de ${post.platform} lista para ser subida.`, 'success', 'check-circle');
+          });
+          
+          // Listen to task updates
+          this.socket.on('task:updated', (task) => {
+            const index = this.tasks.findIndex(t => t.id === task.id);
+            if (index !== -1) {
+              this.tasks[index] = task;
+            }
+          });
+          
+          // Listen to gamification points alerts
+          this.socket.on('user:xp', (data) => {
+            if (data.userId === this.user.id) {
+              this.user.xp = data.xp;
+              this.addToast('Recompensa Otorgada', `+${data.earned} XP: ${data.reason}`, 'success', 'star');
+            }
+          });
+        },
+        
+        async fetchData() {
+          const headers = { 'Authorization': `Bearer mock-jwt-token-decorarte-${this.user.id}` };
+          const backend = window.location.origin;
+
+          try {
+            // Dashboard metrics
+            const metricsRes = await fetch(`${backend}/api/v1/dashboard/metrics`);
+            this.metrics = await metricsRes.json();
+            
+            // Social accounts
+            const accRes = await fetch(`${backend}/api/v1/socials/accounts`);
+            this.socialAccounts = await accRes.json();
+            
+            // Scheduled posts
+            const postsRes = await fetch(`${backend}/api/v1/socials/posts`);
+            this.posts = await postsRes.json();
+
+            // Inbox DMs
+            const inboxRes = await fetch(`${backend}/api/v1/socials/inbox`);
+            this.inbox = await inboxRes.json();
+
+            // Tasks
+            const tasksRes = await fetch(`${backend}/api/v1/tasks`);
+            this.tasks = await tasksRes.json();
+
+            // LMS courses
+            const coursesRes = await fetch(`${backend}/api/v1/academy/courses`);
+            this.courses = await coursesRes.json();
+
+            // Prompts
+            const promptsRes = await fetch(`${backend}/api/v1/prompts`);
+            this.prompts = await promptsRes.json();
+
+            // Automations
+            const rulesRes = await fetch(`${backend}/api/v1/automations/rules`);
+            this.rules = await rulesRes.json();
+            
+            // Initialize lucide icons rendering
+            setTimeout(() => lucide.createIcons(), 50);
+          } catch (e) {
+            console.error("Error cargando API DecorArte", e);
+          }
+        },
+        
+        hasAccess(requiredPerm) {
+          if (this.user.permissions.includes('all')) return true;
+          return this.user.permissions.includes(requiredPerm);
+        },
+        
+        changeRole(role) {
+          // Emulate roles config
+          const rolesConfig = {
+            admin: { id: "u-1", name: "Sofía DecorArte", role: "admin", avatar_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150", permissions: ["all"], xp: 1200 },
+            supervisor: { id: "u-2", name: "Carlos Supervisor", role: "supervisor", avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150", permissions: ["tasks.manage", "posts.approve", "courses.view"], xp: 850 },
+            editor: { id: "u-3", name: "Lucía Editora", role: "editor", avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150", permissions: ["posts.create", "video.edit", "prompts.manage"], xp: 640 },
+            instructor: { id: "u-4", name: "Master Chef Repostero", role: "instructor", avatar_url: "https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=150", permissions: ["courses.manage", "courses.grade"], xp: 950 },
+            empleado: { id: "u-5", name: "Juan Cajas", role: "empleado", avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150", permissions: ["tasks.view", "tasks.complete", "courses.view"], xp: 420 },
+            alumno: { id: "u-6", name: "María Martínez", role: "alumno", avatar_url: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150", permissions: ["courses.view", "courses.take"], xp: 150 },
+            visualizador: { id: "u-7", name: "Inversionista DecorArte", role: "visualizador", avatar_url: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150", permissions: ["analytics.view"], xp: 0 }
+          };
+          this.user = rolesConfig[role];
+          
+          // Switch to dashboard view
+          this.activeTab = this.hasAccess('analytics.view') ? 'dashboard' : (this.user.role === 'alumno' ? 'academy' : 'task-board');
+          
+          this.fetchData();
+          this.addToast('Rol Simulado', `Ahora estás navegando como ${role.toUpperCase()}`, 'info', 'shield');
+        },
+        
+        addToast(title, message, type = 'info', icon = 'bell') {
+          const id = Date.now();
+          this.toasts.push({ id, title, message, type, icon });
+          setTimeout(() => lucide.createIcons(), 10);
+          setTimeout(() => this.removeToast(id), 5000);
+        },
+        
+        removeToast(id) {
+          this.toasts = this.toasts.filter(t => t.id !== id);
+        },
+        
+        // ------------------
+        // TAB SOCIAL HUBS ACTIONS
+        // ------------------
+        async submitPost() {
+          const platform = document.getElementById('post-platform-select').value;
+          const caption = document.getElementById('post-caption-textarea').value;
+          const scheduled_for = document.getElementById('post-date-input').value;
+          
+          if (!caption) return this.addToast('Falta Descripción', 'El copy es requerido.', 'warning', 'alert-circle');
+          
+          const backend = window.location.origin;
+          await fetch(`${backend}/api/v1/socials/posts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ platform, caption, scheduled_for })
+          });
+          
+          this.showScheduleModal = false;
+          // Clear inputs
+          document.getElementById('post-caption-textarea').value = '';
+        },
+        
+        async approvePost(id) {
+          const backend = window.location.origin;
+          await fetch(`${backend}/api/v1/socials/posts/${id}/approve`, { method: 'POST' });
+        },
+        
+        async sendReply(id) {
+          const replyText = document.getElementById(`reply-input-${id}`).value;
+          if (!replyText) return;
+          
+          const backend = window.location.origin;
+          const res = await fetch(`${backend}/api/v1/socials/inbox/reply`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, replyText })
+          });
+          
+          if (res.ok) {
+            this.addToast('Respuesta Enviada', 'El comentario ha sido contestado vía API oficial.', 'success', 'check-circle');
+            document.getElementById(`reply-input-${id}`).value = '';
+            this.fetchData();
+          }
+        },
+
+        // ------------------
+        // TAB PRODUCTION & AI IA ACTIONS
+        // ------------------
+        generateScriptFromIA() {
+          if (!this.iaVideoForm.prompt) return this.addToast('Describe tu video', 'Por favor ingresa un prompt inicial.', 'warning', 'alert-circle');
+          
+          // Pre-populate scripted layout based on selected workflow
+          this.generatedScript = `[ESCENA 1 - 5s]: Toma macro de la báscula de DecorArte. Un huevo cayendo sobre harina en cámara lenta. 
+Música: Beat moderno, enérgico.
+Voz en Off: "El secreto de la esponjosidad perfecta está en la exactitud. ¡Mira esto!"
+
+[ESCENA 2 - 20s]: Primer plano de las batidoras orbitales girando a máxima velocidad. La masa duplicando su volumen.
+Voz en Off: "Batido constante y el horno precalentado a 180 grados. ¡Sin prisa pero sin pausa!"
+
+[ESCENA 3 - 30s]: Pastel terminado decorado con glaseado y fresas frescas.
+Voz en Off: "Y aquí tienes el resultado. Si quieres dominar estas técnicas, entra al enlace de DecorArte Academia y certifícate hoy."`;
+        },
+
+        async renderIAVideo() {
+          if (!this.iaVideoForm.title) return this.addToast('Falta Título', 'El nombre del proyecto de renderizado es obligatorio.', 'warning', 'alert-circle');
+          
+          const backend = window.location.origin;
+          const res = await fetch(`${backend}/api/v1/production/ai/video-render`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: this.iaVideoForm.title,
+              workflow: this.iaVideoForm.workflow,
+              scenes: this.generatedScript
+            })
+          });
+          
+          if (res.ok) {
+            this.addToast('Procesamiento Iniciado', 'El rendering de video se ha encolado en los workers de FFmpeg.', 'info', 'loader');
+            // Go to dashboard to watch progression
+            this.activeTab = 'dashboard';
+            // Reset fields
+            this.iaVideoForm = { title: '', workflow: 'TIP REPOSTERÍA', prompt: '' };
+            this.generatedScript = '';
+          }
+        },
+
+        // ------------------
+        // TAB IA VIDEO EDITOR ACTIONS
+        // ------------------
+        togglePlayVideo() {
+          const video = document.getElementById('editor-video-element');
+          const icon = document.getElementById('play-icon');
+          
+          if (video.paused) {
+            video.play();
+            icon.setAttribute('data-lucide', 'pause');
+          } else {
+            video.pause();
+            icon.setAttribute('data-lucide', 'play');
+          }
+          lucide.createIcons();
+        },
+        
+        trimSilences() {
+          this.addToast('Eliminando silencios', 'El worker está analizando las ondas de audio para recortar silencios...', 'info', 'scissors');
+          setTimeout(() => {
+            this.addToast('Silencios Eliminados', 'Cortes aplicados. Timeline ajustado de 45s a 30s.', 'success', 'check-circle');
+          }, 3000);
+        },
+
+        generateSubtitles() {
+          this.addToast('Generando Subtítulos', 'Escuchando audio y generando subtítulos automáticos...', 'info', 'languages');
+          setTimeout(() => {
+            this.addToast('Subtítulos Creados', 'Subtítulos quemados en el video final con estilo DecorArte.', 'success', 'check-circle');
+          }, 3000);
+        },
+
+        exportVideo(platform) {
+          this.addToast('Exportación Iniciada', `Generando archivo MP4 optimizado para ${platform.toUpperCase()}`, 'info', 'download');
+          setTimeout(() => {
+            this.addToast('Video Exportado', `Renderizado enviado a R2. Publicación lista en borrador.`, 'success', 'check-circle');
+            this.fetchData();
+          }, 3000);
+        },
+
+        // ------------------
+        // TAB ACADEMIA LMS ACTIONS
+        // ------------------
+        async viewCourseDetails(id) {
+          const backend = window.location.origin;
+          const res = await fetch(`${backend}/api/v1/academy/courses/${id}`);
+          this.activeCourse = await res.json();
+          this.selectedLesson = null;
+          setTimeout(() => lucide.createIcons(), 50);
+        },
+        
+        selectLesson(les) {
+          this.selectedLesson = les;
+        },
+
+        async completeLesson(id) {
+          const backend = window.location.origin;
+          const res = await fetch(`${backend}/api/v1/academy/lessons/${id}/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: this.user.id })
+          });
+          
+          if (res.ok) {
+            const data = await res.json();
+            this.addToast('Lección Completada', '¡Buen trabajo! Sigamos adelante.', 'success', 'award');
+            this.user.xp = data.new_xp;
+            this.selectedLesson = null;
+          }
+        },
+
+        // ------------------
+        // TAB TASKS (MONDAY) ACTIONS
+        // ------------------
+        async submitTask() {
+          const title = document.getElementById('task-title-input').value;
+          const description = document.getElementById('task-desc-textarea').value;
+          const area = document.getElementById('task-area-select').value;
+          const priority = document.getElementById('task-priority-select').value;
+          
+          if (!title) return this.addToast('Nombre faltante', 'Por favor ingresa un título para la tarea.', 'warning', 'alert-circle');
+          
+          const backend = window.location.origin;
+          await fetch(`${backend}/api/v1/tasks`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, description, area, priority, assignee: this.user.name, assignee_id: this.user.id })
+          });
+          
+          this.showAddTaskModal = false;
+          // Clear inputs
+          document.getElementById('task-title-input').value = '';
+          document.getElementById('task-desc-textarea').value = '';
+          this.fetchData();
+        },
+        
+        async toggleTaskStatus(task) {
+          const newStatus = task.status === 'completed' ? 'pending' : 'completed';
+          const backend = window.location.origin;
+          
+          await fetch(`${backend}/api/v1/tasks/${task.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
+          });
+          
+          this.fetchData();
+        },
+
+        async uploadEvidenceMock(taskId) {
+          this.addToast('Cargando Evidencia', 'Subiendo foto de evidencia a Cloudflare R2...', 'info', 'image');
+          
+          setTimeout(async () => {
+            const backend = window.location.origin;
+            const evidenceUrl = "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400";
+            
+            await fetch(`${backend}/api/v1/tasks/${taskId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                status: 'under_review',
+                evidence_urls: [evidenceUrl]
+              })
+            });
+            
+            this.addToast('Evidencia Cargada', 'Tarea enviada a revisión del supervisor.', 'success', 'check-circle');
+            this.fetchData();
+          }, 2000);
+        },
+
+        // ------------------
+        // TAB PROMPTS ACTIONS
+        // ------------------
+        loadPrompt(pr) {
+          this.promptForm = {
+            title: pr.title,
+            category: pr.category,
+            prompt_text: pr.prompt_text
+          };
+          this.addToast('Prompt Cargado', 'Puedes editarlo y guardarlo como nueva versión.', 'info', 'edit');
+        },
+
+        async polishPromptIA() {
+          if (!this.promptForm.prompt_text) return this.addToast('Prompt vacío', 'Ingresa un prompt para poder optimizarlo.', 'warning', 'alert-circle');
+          
+          this.addToast('AI Pulido en proceso', 'Modelos estructurando tu prompt...', 'info', 'sparkles');
+          
+          const backend = window.location.origin;
+          const res = await fetch(`${backend}/api/v1/prompts/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: this.promptForm.prompt_text })
+          });
+          
+          if (res.ok) {
+            const data = await res.json();
+            this.promptForm.prompt_text = data.polishedPrompt;
+            this.addToast('Prompt Pulido', 'Optimizado con técnicas avanzadas de prompting.', 'success', 'sparkles');
+          }
+        },
+
+        async savePrompt() {
+          if (!this.promptForm.title || !this.promptForm.prompt_text) return this.addToast('Faltan Datos', 'El título y cuerpo del prompt son obligatorios.', 'warning', 'alert-circle');
+          
+          const backend = window.location.origin;
+          const res = await fetch(`${backend}/api/v1/prompts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(this.promptForm)
+          });
+          
+          if (res.ok) {
+            this.addToast('Prompt Guardado', 'El prompt ha sido registrado en la biblioteca.', 'success', 'check-circle');
+            // reset form
+            this.promptForm = { title: '', category: 'tiktok', prompt_text: '' };
+            this.fetchData();
+          }
+        },
+
+        // ------------------
+        // TAB AUTOMATIONS ACTIONS
+        // ------------------
+        async toggleRule(id) {
+          const backend = window.location.origin;
+          const res = await fetch(`${backend}/api/v1/automations/rules/${id}/toggle`, { method: 'POST' });
+          if (res.ok) {
+            this.addToast('Regla Modificada', 'Estado de la regla condicional actualizado en la base de datos.', 'info', 'git-branch');
+            this.fetchData();
+          }
+        }
+      }
+    }
+  </script>
+</body>
+</html>

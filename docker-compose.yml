@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # 1. DATABASE LAYER (PostgreSQL / Supabase compatible)
+  postgres:
+    image: postgres:15-alpine
+    container_name: decorarte-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: decorarte_hub
+      POSTGRES_USER: decorarte_admin
+      POSTGRES_PASSWORD: SecretPassword2027
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - decorarte-network
+
+  # 2. QUEUE LAYER (Redis for Video Workers and Pub/Sub)
+  redis:
+    image: redis:7-alpine
+    container_name: decorarte-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - decorarte-network
+
+  # 3. NODE.JS REALTIME & WEBSOCKET ENGINE
+  realtime-service:
+    build:
+      context: ./realtime-service
+      dockerfile: Dockerfile
+    container_name: decorarte-realtime
+    restart: always
+    environment:
+      - PORT=5000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=decorarte_hub
+      - DB_USER=decorarte_admin
+      - DB_PASS=SecretPassword2027
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./realtime-service:/usr/src/app
+      - /usr/src/app/node_modules
+      - ./frontend:/usr/src/frontend
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - decorarte-network
+
+  # 4. LARAVEL CORE API BACKEND
+  laravel-api:
+    image: php:8.2-fpm-alpine
+    container_name: decorarte-laravel
+    restart: always
+    working_dir: /var/www
+    volumes:
+      - ./backend-laravel:/var/www
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=decorarte_hub
+      - DB_USERNAME=decorarte_admin
+      - DB_PASSWORD=SecretPassword2027
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - decorarte-network
+
+networks:
+  decorarte-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
