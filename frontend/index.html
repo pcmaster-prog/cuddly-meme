@@ -218,10 +218,6 @@
       <!-- TOP HEADER BAR -->
       <header class="h-16 border-b border-white/5 flex items-center justify-between px-4 sm:px-8 bg-black/10 backdrop-blur-md sticky top-0 z-20">
         <div class="flex items-center gap-3">
-          <!-- Hamburger Toggle -->
-          <button @click="mobileSidebarOpen = !mobileSidebarOpen" class="lg:hidden p-2 rounded-lg hover:bg-white/5 text-zinc-400 hover:text-zinc-200 mr-1 transition-all">
-            <i data-lucide="menu" class="w-5 h-5"></i>
-          </button>
           <h2 class="font-display font-bold text-sm sm:text-lg text-zinc-200 capitalize" x-text="activeTab.replace('-', ' ')"></h2>
           <!-- Live Websocket Connection Status -->
           <span class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -1634,5 +1630,14 @@ Voz en Off: "Y aquí tienes el resultado. Si quieres dominar estas técnicas, en
       }
     }
   </script>
+
+  <!-- Floating Menu Action Button (Mobile only) -->
+  <button @click="mobileSidebarOpen = !mobileSidebarOpen"
+          class="fixed bottom-6 right-6 z-40 lg:hidden w-14 h-14 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-500 text-white shadow-xl shadow-purple-500/40 border border-white/10 flex items-center justify-center hover:scale-105 active:scale-95 transition-all focus:outline-none"
+          aria-label="Toggle Menu">
+    <!-- Show hamburger menu if closed, show close icon if open -->
+    <i x-show="!mobileSidebarOpen" data-lucide="menu" class="w-6 h-6"></i>
+    <i x-show="mobileSidebarOpen" data-lucide="x" class="w-6 h-6" x-cloak></i>
+  </button>
 </body>
 </html>
